@@ -1,3 +1,8 @@
+Takes in humidity and temperature readings.
+
+An LED traffic light system is used to indicate whether water needs to be sprayed to raise humidity for Apollo - my partner's Crested Gecko.
+Once the target has been met, the humidity needs to fall until the next scheduled time. Humidity needs to be higher at night.
+
 ## Make changes
 
 1. Connect a USB-C cable to the ESP32 and find the COM using device manager.
