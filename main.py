@@ -59,12 +59,30 @@ class Schedule():
         self.sync_time()
         self.start_time = self.get_time_hour()
 
-        if self.start_time >= morning and self.start_time < night:
-            self.mode = "AM"
-        else:
-            self.mode = "PM"
+        # Whether target humidity was achieved after mode changed
+        self._target_humidity_achieved = False
 
-        self.mode_changed = True
+        self.update()
+
+    def set_target_humidity_achieved(self):
+        self._target_humidity_achieved = True
+
+    def is_target_humidity_achieved(self):
+        return self._target_humidity_achieved
+
+    def update(self):
+        current_mode = ("AM" if self.start_time >= morning and
+                        self.start_time < night else "PM")
+
+        # Set inital mode and return it
+        if not hasattr(self, 'mode'):
+            self.mode = current_mode
+            return
+
+        # If the mode is to be changed
+        if self.mode != current_mode:
+            self.mode = current_mode
+            self._target_humidity_achieved = False
 
     def sync_time(self):
         # Connect to wifi
@@ -98,6 +116,10 @@ class Schedule():
         current_time = utime.localtime()
         return current_time[3]
 
+    def get_time_minutes(self):
+        current_time = utime.localtime()
+        return current_time[4]
+
 
 def change_led_color(led):
     global prev_led
@@ -121,8 +143,6 @@ schedule = Schedule()
 
 display = Display()
 
-sleep_length = 100
-
 while True:
     d.measure()
     temp = d.temperature()
@@ -136,11 +156,24 @@ while True:
     display.add_text(f"{humidity}%", 41)
     display.show()
 
-    if (humidity >= 70):
-        change_led_color(green)
-    elif (humidity >= 60):
-        change_led_color(yellow)
-    elif (humidity < 60):
-        change_led_color(red)
+    schedule.update()
 
-    time.sleep(sleep_length)
+    if not schedule.is_target_humidity_achieved():
+        if schedule.mode == "AM":
+            green_bounds = 70
+            yellow_bounds = 60
+        else:
+            green_bounds = 80
+            yellow_bounds = 70
+
+        if (humidity >= green_bounds):
+            change_led_color(green)
+            schedule.set_target_humidity_achieved()
+        elif (humidity >= yellow_bounds):
+            change_led_color(yellow)
+        elif (humidity < yellow_bounds):
+            change_led_color(red)
+
+        time.sleep(0.01)  # Update every 10ms until target achieved
+    else:
+        time.sleep(5)  # Update every 5s
