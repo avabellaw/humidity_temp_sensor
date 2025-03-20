@@ -1,7 +1,15 @@
+import os
 import dht
 import machine
 import time
 import ssd1306
+import ntptime
+import network
+import utime
+
+from env import variables
+
+sta_if = network.WLAN(network.WLAN.IF_STA)
 
 d = dht.DHT22(machine.Pin(2))
 
@@ -10,6 +18,9 @@ yellow = machine.Pin(21, machine.Pin.OUT)
 green = machine.Pin(0, machine.Pin.OUT)
 
 prev_led = None
+
+morning = 8  # 8AM
+night = 22  # 10PM
 
 
 class Display():
@@ -43,6 +54,51 @@ class Display():
         self.display.show()
 
 
+class Schedule():
+    def __init__(self):
+        self.sync_time()
+        self.start_time = self.get_time_hour()
+
+        if self.start_time >= morning and self.start_time < night:
+            self.mode = "AM"
+        else:
+            self.mode = "PM"
+
+        self.mode_changed = True
+
+    def sync_time(self):
+        # Connect to wifi
+        try:
+            sta_if.active(True)
+            ssid = variables['SSID']
+            password = variables['PASS']
+            if ssid is None or password is None:
+                raise Exception(("Create env.py with a dict 'variables'"
+                                 "containing SSID & PASS for Wifi."))
+            sta_if.connect(variables['SSID'], variables['PASS'])
+            while not sta_if.isconnected():
+                print("connecting...")
+                time.sleep(1)
+            print('network info:', sta_if.ifconfig())
+        except Exception as e:
+            print(f"Failed to connect to internet: {e}")
+
+        # Sync time
+        try:
+            print("Synchronizing time with NTP...")
+            ntptime.settime()  # Synchronize with NTP server
+            print("Time synchronized!")
+        except Exception as e:
+            print(f"Failed to sync time: {e}")
+
+        # Close wifi connection
+        sta_if.active(False)
+
+    def get_time_hour(self):
+        current_time = utime.localtime()
+        return current_time[3]
+
+
 def change_led_color(led):
     global prev_led
     if prev_led is not None:
@@ -61,8 +117,11 @@ def change_led_color(led):
     prev_led = led
 
 
+schedule = Schedule()
+
 display = Display()
 
+sleep_length = 100
 
 while True:
     d.measure()
@@ -84,4 +143,4 @@ while True:
     elif (humidity < 60):
         change_led_color(red)
 
-    time.sleep(1)
+    time.sleep(sleep_length)
