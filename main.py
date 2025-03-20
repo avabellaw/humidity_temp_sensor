@@ -11,6 +11,7 @@ green = machine.Pin(0, machine.Pin.OUT)
 
 prev_led = None
 
+
 class Display():
     def __init__(self):
         # Initialize I2C with default pins (SDA=Pin(4), SCL=Pin(5))
@@ -22,25 +23,25 @@ class Display():
         # Clear the display
         self.display.fill(0)
         self.display.show()
-    
+
     def add_text(self, text, y):
         start_x = int((128 - len(text) * 24) / 2)
-    
+
         if start_x < 0:
             start_x = 0
         self.display.write_text(text, start_x, y, size=3)
-        
+
     def reset(self):
         self.display.fill(0)
-    
+
     def show_text(self, text, y):
         self.reset()
         self.add_text(text, y)
         self.show()
-        
+
     def show(self):
         self.display.show()
-        
+
 
 def change_led_color(led):
     global prev_led
