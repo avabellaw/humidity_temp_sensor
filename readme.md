@@ -12,16 +12,22 @@ Once the target has been met, the humidity needs to fall until the next schedule
 variables['SSID'] - Wifi ssid
 variables['PASS'] - Wifi password
 
+Copy over the files ([See make changes section](#make-changes)):
+- env.py (that you just created)
+- main.py
+- micropython_ota.py
+- ssd1306.py
+
 ### Setup Over The Air updates
 
 variables['OTA_HOST'] - HTTP/HTTPS file server url containing updates.
 variables['OTA_PROJECT_NAME'] - The folder name that contains the updates.
 
 1. Add a folder with the OTA_PROJECT_NAME. 
-2. 
-3. In the folder, create a file called 'version' that contains the current version (eg v1.0.0).
+   
+2. In the folder, create a file called 'version' that contains the current version (eg v1.0.0).
 
-4. For each version, create a directory with the version as the name (eg v1.0.0). Add the env.py and main.py files.
+3. For each version, create a directory with the version as the name (eg v1.0.0). Add the env.py and main.py files.
 
 ## Make changes
 
