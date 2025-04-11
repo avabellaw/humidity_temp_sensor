@@ -5,6 +5,9 @@ Once the target has been met, the humidity needs to fall until the next schedule
 
 ## Setup 
 
+I am using an ESP32-c3-mini zero. Here is the pin diagram for that board ([from waveshare.com](https://www.waveshare.com/esp32-c3-zero.htm)):
+![ESP32-c3 pin diagram](docs/ESP32-C3-Zero-pins.jpg)
+
 1. Create an env.py file.
 2. Create a dict called 'variables'.
 3. Add the following enviroment variables:
