@@ -92,7 +92,7 @@ def check_for_updates():
 
 
 def button_clicked(time_held_ms):
-    """Sets needs_feeding to False if button clicked"""
+    """Sets days_since_fed to 0 on button click event"""
     global schedule
     schedule.reset_food_days_counter()
 
@@ -174,8 +174,8 @@ def change_led_color(led):
 
 
 async def blink_led():
-    global prev_led
-    while True:
+    global prev_led, schedule
+    while schedule.needs_food():
         prev_led.value(0 if prev_led.value() else 1)
         await uasyncio.sleep(0.5)
 
@@ -239,7 +239,6 @@ async def main():
             blink_led_task = uasyncio.create_task(blink_led())
 
         if not schedule.needs_food() and blink_led_task is not None:
-            prev_led.value(1)
             blink_led_task.cancel()
             blink_led_task = None
 
