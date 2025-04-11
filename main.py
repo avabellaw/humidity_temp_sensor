@@ -21,8 +21,8 @@ green = machine.Pin(6, machine.Pin.OUT)
 
 prev_led = None
 
-morning = 8  # 8AM
-night = 22  # 10PM
+morning = variables['MORNING']  # eg 8 for 8AM
+night = variables['NIGHT']  # eg 20 for 8PM
 
 
 class Display():

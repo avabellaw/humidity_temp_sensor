@@ -9,11 +9,13 @@ I am using an ESP32-c3-mini zero. Here is the pin diagram for that board ([from 
 ![ESP32-c3 pin diagram](docs/ESP32-C3-Zero-pins.jpg)
 
 1. Create an env.py file.
-2. Create a dict called 'variables'.
+2. Create a dict called 'variables' as MicroPython doesn't support enviroment variables.
 3. Add the following enviroment variables:
 
 variables['SSID'] - Wifi ssid
 variables['PASS'] - Wifi password
+variables['MORNING'] - When morning schedule starts
+variables['EVENING'] - When night schedule starts
 
 Copy over the files ([See make changes section](#make-changes)):
 - env.py (that you just created)
