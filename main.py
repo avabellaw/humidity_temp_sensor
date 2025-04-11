@@ -1,12 +1,13 @@
 import dht
 import machine
-import time
 import ssd1306
 import ntptime
 import network
 import utime
+import uasyncio
 
 import micropython_ota
+from button_click_handler import ButtonClickHandler
 
 from env import variables
 
@@ -16,7 +17,7 @@ d = dht.DHT22(machine.Pin(2))
 
 red = machine.Pin(5, machine.Pin.OUT)
 yellow = machine.Pin(21, machine.Pin.OUT)
-green = machine.Pin(0, machine.Pin.OUT)
+green = machine.Pin(6, machine.Pin.OUT)
 
 prev_led = None
 
@@ -67,7 +68,7 @@ def connect_to_wifi():
         sta_if.connect(variables['SSID'], variables['PASS'])
         while not sta_if.isconnected():
             print("connecting...")
-            time.sleep(1)
+            utime.sleep(1)
         print('network info:', sta_if.ifconfig())
     except Exception as e:
         print(f"Failed to connect to internet: {e}")
@@ -90,6 +91,12 @@ def check_for_updates():
                                soft_reset_device=False, timeout=5)
 
 
+def button_clicked(time_held_ms):
+    """Sets needs_feeding to False if button clicked"""
+    global schedule
+    schedule.reset_food_days_counter()
+
+
 class Schedule():
     def __init__(self):
         self.sync_time()
@@ -98,6 +105,8 @@ class Schedule():
         # Whether target humidity was achieved after mode changed
         self._target_humidity_achieved = False
 
+        self.days_since_fed = variables['CHANGE_FOOD_DAYS']
+
         self.update()
 
     def set_target_humidity_achieved(self):
@@ -105,6 +114,13 @@ class Schedule():
 
     def is_target_humidity_achieved(self):
         return self._target_humidity_achieved
+
+    def needs_food(self):
+        return self.days_since_fed >= variables['CHANGE_FOOD_DAYS']
+
+    def reset_food_days_counter(self):
+        self.days_since_fed = 0
+        prev_led.value(1)
 
     def update(self):
         current_mode = ("AM" if self.start_time >= morning and
@@ -119,6 +135,7 @@ class Schedule():
         if self.mode != current_mode:
             self.mode = current_mode
             self._target_humidity_achieved = False
+            self.days_since_fed += 0.5
 
     def sync_time(self):
         # Sync time
@@ -156,48 +173,79 @@ def change_led_color(led):
     prev_led = led
 
 
-connect_to_wifi()
+async def blink_led():
+    global prev_led
+    while True:
+        prev_led.value(0 if prev_led.value() else 1)
+        await uasyncio.sleep(0.5)
 
-# Check for updates on boot using micropython-ota
-check_for_updates()
 
-schedule = Schedule()
+async def main():
+    """
+        Contains the main loop and initialization code.
+    """
+    connect_to_wifi()
 
-disconnect_from_wifi()
+    # Check for updates on boot using micropython-ota
+    check_for_updates()
 
-display = Display()
+    global schedule
+    schedule = Schedule()
 
-while True:
-    d.measure()
-    temp = d.temperature()
-    humidity = d.humidity()
+    disconnect_from_wifi()
 
-    output = f"Temperature: {temp}°C, Humidity: {humidity}%"
+    display = Display()
 
-    print(output)
-    display.reset()
-    display.add_text(f"{temp}c", 7)
-    display.add_text(f"{humidity}%", 41)
-    display.show()
+    # Setup button click handler
+    ButtonClickHandler(7, button_clicked)
 
-    schedule.update()
+    blink_led_task = None
 
-    if not schedule.is_target_humidity_achieved():
-        if schedule.mode == "AM":
-            green_bounds = 70
-            yellow_bounds = 60
-        else:
-            green_bounds = 80
-            yellow_bounds = 70
+    while True:
+        # Sleep for 5s. Decrease sleep to 100ms if target humidity is not met.
+        sleep_time = 5 if schedule.is_target_humidity_achieved() else 0.1
 
-        if (humidity >= green_bounds):
-            change_led_color(green)
-            schedule.set_target_humidity_achieved()
-        elif (humidity >= yellow_bounds):
-            change_led_color(yellow)
-        elif (humidity < yellow_bounds):
-            change_led_color(red)
+        d.measure()
+        temp = d.temperature()
+        humidity = d.humidity()
 
-        time.sleep(0.01)  # Update every 10ms until target achieved
-    else:
-        time.sleep(5)  # Update every 5s
+        output = f"Temperature: {temp}°C, Humidity: {humidity}%"
+
+        print(output)
+        display.reset()
+        display.add_text(f"{temp}c", 7)
+        display.add_text(f"{humidity}%", 41)
+        display.show()
+
+        schedule.update()
+
+        if not schedule.is_target_humidity_achieved():
+            if schedule.mode == "AM":
+                green_bounds = 70
+                yellow_bounds = 60
+            else:
+                green_bounds = 80
+                yellow_bounds = 70
+
+            if (humidity >= green_bounds):
+                change_led_color(green)
+                schedule.set_target_humidity_achieved()
+            elif (humidity >= yellow_bounds):
+                change_led_color(yellow)
+            elif (humidity < yellow_bounds):
+                change_led_color(red)
+
+        if schedule.needs_food() and blink_led_task is None:
+            blink_led_task = uasyncio.create_task(blink_led())
+
+        if not schedule.needs_food() and blink_led_task is not None:
+            prev_led.value(1)
+            blink_led_task.cancel()
+            blink_led_task = None
+
+        # Update every 100ms until target achieved, otherwise update every 5s
+        await uasyncio.sleep(sleep_time)
+
+
+# Starts the main thread
+uasyncio.run(main())
