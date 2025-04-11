@@ -1,4 +1,3 @@
-import os
 import dht
 import machine
 import time
@@ -6,6 +5,8 @@ import ssd1306
 import ntptime
 import network
 import utime
+
+import micropython_ota
 
 from env import variables
 
@@ -54,6 +55,41 @@ class Display():
         self.display.show()
 
 
+def connect_to_wifi():
+    # Connect to wifi
+    try:
+        sta_if.active(True)
+        ssid = variables['SSID']
+        password = variables['PASS']
+        if ssid is None or password is None:
+            raise Exception(("Create env.py with a dict 'variables'"
+                            "containing SSID & PASS for Wifi."))
+        sta_if.connect(variables['SSID'], variables['PASS'])
+        while not sta_if.isconnected():
+            print("connecting...")
+            time.sleep(1)
+        print('network info:', sta_if.ifconfig())
+    except Exception as e:
+        print(f"Failed to connect to internet: {e}")
+
+
+def disconnect_from_wifi():
+    # Close wifi connection
+    sta_if.active(False)
+
+
+def check_for_updates():
+    # Check the nginx server for new version of env.py and main.py files
+    ota_host = variables['OTA_HOST']
+    project_name = variables['OTA_PROJECT_NAME']
+    filenames = ['env.py', 'main.py']
+
+    micropython_ota.ota_update(ota_host, project_name, filenames,
+                               use_version_prefix=False,
+                               hard_reset_device=True,
+                               soft_reset_device=False, timeout=5)
+
+
 class Schedule():
     def __init__(self):
         self.sync_time()
@@ -85,22 +121,6 @@ class Schedule():
             self._target_humidity_achieved = False
 
     def sync_time(self):
-        # Connect to wifi
-        try:
-            sta_if.active(True)
-            ssid = variables['SSID']
-            password = variables['PASS']
-            if ssid is None or password is None:
-                raise Exception(("Create env.py with a dict 'variables'"
-                                 "containing SSID & PASS for Wifi."))
-            sta_if.connect(variables['SSID'], variables['PASS'])
-            while not sta_if.isconnected():
-                print("connecting...")
-                time.sleep(1)
-            print('network info:', sta_if.ifconfig())
-        except Exception as e:
-            print(f"Failed to connect to internet: {e}")
-
         # Sync time
         try:
             print("Synchronizing time with NTP...")
@@ -108,9 +128,6 @@ class Schedule():
             print("Time synchronized!")
         except Exception as e:
             print(f"Failed to sync time: {e}")
-
-        # Close wifi connection
-        sta_if.active(False)
 
     def get_time_hour(self):
         current_time = utime.localtime()
@@ -139,7 +156,14 @@ def change_led_color(led):
     prev_led = led
 
 
+connect_to_wifi()
+
+# Check for updates on boot using micropython-ota
+check_for_updates()
+
 schedule = Schedule()
+
+disconnect_from_wifi()
 
 display = Display()
 
