@@ -19,7 +19,7 @@ red = machine.Pin(5, machine.Pin.OUT)
 yellow = machine.Pin(21, machine.Pin.OUT)
 green = machine.Pin(6, machine.Pin.OUT)
 
-prev_led = None
+current_led = None
 
 morning = variables['MORNING']  # eg 8 for 8AM
 night = variables['NIGHT']  # eg 20 for 8PM
@@ -100,7 +100,6 @@ def button_clicked(time_held_ms):
 class Schedule():
     def __init__(self):
         self.sync_time()
-        self.start_time = self.get_time_hour()
 
         # Whether target humidity was achieved after mode changed
         self._target_humidity_achieved = False
@@ -115,18 +114,18 @@ class Schedule():
     def is_target_humidity_achieved(self):
         return self._target_humidity_achieved
 
-    def needs_food(self):
+    def food_change_due(self):
         return self.days_since_fed >= variables['CHANGE_FOOD_DAYS']
 
     def reset_food_days_counter(self):
         self.days_since_fed = 0
-        prev_led.value(1)
+        current_led.value(1)
 
     def update(self):
-        current_mode = ("AM" if self.start_time >= morning and
-                        self.start_time < night else "PM")
+        current_mode = ("AM" if self.get_time_hour() >= morning and
+                        self.get_time_hour() < night else "PM")
 
-        # Set inital mode and return it
+        # Set inital mode and return
         if not hasattr(self, 'mode'):
             self.mode = current_mode
             return
@@ -156,27 +155,31 @@ class Schedule():
 
 
 def change_led_color(led):
-    global prev_led
-    if prev_led is not None:
-        if prev_led is led:
+    """
+        Change the LED to the new led value
+
+        parameter: led (green, yellow, red)
+    """
+    global current_led
+    # Turn the current LED off or leave on and return
+    if current_led is not None:
+        if current_led is led:
             return
         else:
-            prev_led.value(0)
+            current_led.value(0)
 
-    if led is red:
-        red.value(1)
-    elif led is green:
-        green.value(1)
-    elif led is yellow:
-        yellow.value(1)
+    # Turn the 'led' argument that was passed
+    led.value(1)
 
-    prev_led = led
+    # Set current_led to 'led'
+    current_led = led
 
 
 async def blink_led():
-    global prev_led, schedule
-    while schedule.needs_food():
-        prev_led.value(0 if prev_led.value() else 1)
+    """Blinks the current LED on/off every half second """
+    global current_led, schedule
+    while schedule.food_change_due():
+        current_led.value(0 if current_led.value() else 1)
         await uasyncio.sleep(0.5)
 
 
@@ -235,10 +238,12 @@ async def main():
             elif (humidity < yellow_bounds):
                 change_led_color(red)
 
-        if schedule.needs_food() and blink_led_task is None:
+        # If food change due, flash the LED
+        if schedule.food_change_due() and blink_led_task is None:
             blink_led_task = uasyncio.create_task(blink_led())
 
-        if not schedule.needs_food() and blink_led_task is not None:
+        # Cancel asyncio blink LED task if button pressed
+        if not schedule.food_change_due() and blink_led_task is not None:
             blink_led_task.cancel()
             blink_led_task = None
 
