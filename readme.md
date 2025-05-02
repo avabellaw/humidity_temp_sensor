@@ -65,3 +65,9 @@ Connect using a serial connection on an SSH client such as PUTTY.
 3. Press reset CTRL+C.
 
 4. Import main
+
+## Blynk app
+
+Blynk allows you to use their app to view metrics. Temperature and humidity updates are sent to Blynk using an auth token. 
+
+![Blynk screenshot](docs/blynk-screenshot.jpg)
