@@ -136,7 +136,7 @@ class Schedule():
 
     def reset_food_days_counter(self):
         self.days_since_fed = 0
-        current_led.value(1)
+        current_led.value(1)  # Ensure LED is on after blinking
 
     def update(self):
         current_mode = ("AM" if self.get_time_hour() >= morning and
@@ -198,6 +198,9 @@ async def blink_led():
     while schedule.food_change_due():
         current_led.value(0 if current_led.value() else 1)
         await uasyncio.sleep(0.5)
+    
+    # If green, turn off after 5 seconds
+    turn_off_led(green, delay=5)
 
 
 async def send_data_to_blynk(sensor, interval=30):
@@ -206,10 +209,6 @@ async def send_data_to_blynk(sensor, interval=30):
 
         parameter: [int] interval (in minutes) to the send data
     """
-
-    BLYNK_API_URL = ('https://blynk.cloud/external/api/batch/update'
-                     f'?token={variables['BLYNK_AUTH_TOKEN']}')
-
     while True:
         connect_to_wifi()
 
@@ -220,6 +219,12 @@ async def send_data_to_blynk(sensor, interval=30):
 
         await uasyncio.sleep(60 * interval)  # Update every 30 minutes
 
+def turn_off_led(LED, delay=0): 
+    async def task_turn_of_led():
+        await uasyncio.sleep(delay)
+        LED.value(0)  # Turn off LED
+
+    uasyncio.create_task(task_turn_of_led())
 
 async def main():
     """
@@ -273,7 +278,11 @@ async def main():
 
             if (sensor.humidity >= green_bounds):
                 change_led_color(green)
+
                 schedule.set_target_humidity_achieved()
+
+                turn_off_led(green, delay=5)
+
             elif (sensor.humidity >= yellow_bounds):
                 change_led_color(yellow)
             elif (sensor.humidity < yellow_bounds):
@@ -285,7 +294,6 @@ async def main():
 
         # Cancel asyncio blink LED task if button pressed
         if not schedule.food_change_due() and blink_led_task is not None:
-            blink_led_task.cancel()
             blink_led_task = None
 
         # Update every 100ms until target achieved, otherwise update every 5s
