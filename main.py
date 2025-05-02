@@ -5,6 +5,7 @@ import ntptime
 import network
 import utime
 import uasyncio
+import urequests
 
 import micropython_ota
 from button_click_handler import ButtonClickHandler
@@ -12,8 +13,6 @@ from button_click_handler import ButtonClickHandler
 from env import variables
 
 sta_if = network.WLAN(network.WLAN.IF_STA)
-
-d = dht.DHT22(machine.Pin(2))
 
 red = machine.Pin(5, machine.Pin.OUT)
 yellow = machine.Pin(21, machine.Pin.OUT)
@@ -23,6 +22,24 @@ current_led = None
 
 morning = variables['MORNING']  # eg 8 for 8AM
 night = variables['NIGHT']  # eg 20 for 8PM
+
+BLYNK_TOKEN = variables['BLYNK_AUTH_TOKEN']
+BLYNK_API_URL = (
+    f'https://blynk.cloud/external/api/batch/update?token={BLYNK_TOKEN}')
+
+
+class Sensor:
+    """The dht humidity and temperature sensor."""
+
+    def __init__(self, pin):
+        self.dht = dht.DHT22(machine.Pin(pin))
+        self.update()
+
+    def update(self):
+        """Calls dht measure and updates temp & humidity values"""
+        self.dht.measure()
+        self.temp = self.dht.temperature()
+        self.humidity = self.dht.humidity()
 
 
 class Display():
@@ -183,6 +200,27 @@ async def blink_led():
         await uasyncio.sleep(0.5)
 
 
+async def send_data_to_blynk(sensor, interval=30):
+    """
+        Send temperature and humidity data to Blynk server to be viewed on app.
+
+        parameter: [int] interval (in minutes) to the send data
+    """
+
+    BLYNK_API_URL = ('https://blynk.cloud/external/api/batch/update'
+                     f'?token={variables['BLYNK_AUTH_TOKEN']}')
+
+    while True:
+        connect_to_wifi()
+
+        url = f'{BLYNK_API_URL}&v0={sensor.temp}&v1={sensor.humidity}'
+        urequests.get(url)
+
+        disconnect_from_wifi()
+
+        await uasyncio.sleep(60 * interval)  # Update every 30 minutes
+
+
 async def main():
     """
         Contains the main loop and initialization code.
@@ -204,20 +242,23 @@ async def main():
 
     blink_led_task = None
 
+    sensor = Sensor(2)  # DHT22 sensor on GPIO2
+
+    # Create a task to continuously send data to Blynk
+    uasyncio.create_task(send_data_to_blynk(sensor))
+
     while True:
         # Sleep for 5s. Decrease sleep to 100ms if target humidity is not met.
         sleep_time = 5 if schedule.is_target_humidity_achieved() else 0.1
 
-        d.measure()
-        temp = d.temperature()
-        humidity = d.humidity()
+        sensor.update()  # Update temp & humidity values
 
-        output = f"Temperature: {temp}°C, Humidity: {humidity}%"
+        output = f"Temperature: {sensor.temp}°C, Humidity: {sensor.humidity}%"
 
         print(output)
         display.reset()
-        display.add_text(f"{temp}c", 7)
-        display.add_text(f"{humidity}%", 41)
+        display.add_text(f"{sensor.temp}c", 7)
+        display.add_text(f"{sensor.humidity}%", 41)
         display.show()
 
         schedule.update()
@@ -230,12 +271,12 @@ async def main():
                 green_bounds = 80
                 yellow_bounds = 70
 
-            if (humidity >= green_bounds):
+            if (sensor.humidity >= green_bounds):
                 change_led_color(green)
                 schedule.set_target_humidity_achieved()
-            elif (humidity >= yellow_bounds):
+            elif (sensor.humidity >= yellow_bounds):
                 change_led_color(yellow)
-            elif (humidity < yellow_bounds):
+            elif (sensor.humidity < yellow_bounds):
                 change_led_color(red)
 
         # If food change due, flash the LED
