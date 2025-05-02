@@ -12,10 +12,12 @@ I am using an ESP32-c3-mini zero. Here is the pin diagram for that board ([from 
 2. Create a dict called 'variables' as MicroPython doesn't support enviroment variables.
 3. Add the following enviroment variables:
 
-variables['SSID'] - Wifi ssid
-variables['PASS'] - Wifi password
-variables['MORNING'] - When morning schedule starts
-variables['EVENING'] - When night schedule starts
+variables['SSID'] - [str] Wifi ssid
+variables['PASS'] - [str] Wifi password
+variables['MORNING'] - [int] When morning schedule starts
+variables['EVENING'] - [int] When night schedule starts
+variables['CHANGE_FOOD_DAYS'] - [int] Number of days inbetween checking food
+variables['BLYNK_AUTH_TOKEN'] - [str] Auth token for Blynk IoT
 
 Copy over the files ([See make changes section](#make-changes)):
 - env.py (that you just created)
